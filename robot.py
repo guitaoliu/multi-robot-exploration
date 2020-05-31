@@ -1,24 +1,69 @@
-import math
+from typing import Tuple
 
-class robot:
+import numpy as np 
 
-    total_num=0
-    communicate_range=0
-    explore_range=0
+from setting import (
+    BOT_COMMUNICATE_RANGE,
+    BOT_MOVING_RANGE,
+    MAP_SIZE,
+    PROFIT_RATIO,
+    PHE_RATIO,
+)
 
-    def __init__(self,pos):
-        self.pos=pos
-        robot.total_num += 1
+from maps import BarrierMap, ExploreMap, PheMap
 
-    def setRange(self,communicate_range,explore_range):
-        robot.communicate_range=communicate_range
-        robot.explore_range=explore_range
 
-    def getDistance(self,target):
-        return abs(self.pos[0]-target[0])+abs(self.pos[1]-target[1])
+class Node:
 
-    def canCommunicate(self,r:robot)->bool:
-        return math.sqrt((self.pos[0]-r.pos[0])**2+(self.pos[1]-r.pos[1])**2)<=robot.communicate_range
+    def __init__(self, pos: tuple):
+        self.x = pos[0]
+        self.y = pos[1]
 
-    def explore(self):
-        '''update map by BFS'''
+
+class Robot:
+
+    def __init__(self, pos: tuple):
+        if len(pos) != 2:
+            raise TypeError
+        self.node = Node(pos)
+        self.comm_range = BOT_COMMUNICATE_RANGE
+        self.mov_range = BOT_MOVING_RANGE
+        self.loc_barrier_map = ExploreMap()
+        self.loc_explore_map = ExploreMap()
+        self.moving_path = []
+
+    def moving_profit(self, node: Node) -> float:
+        if self.get_accessibility(node):
+            moving_cost = self.get_manha_distance(node)
+            phe = self.get_phe_level(node)
+            explore_profit = self.get_explore_profit()
+            r = np.exp(
+                PROFIT_RATIO * explore_profit + (1 - PROFIT_RATIO) * (
+                    moving_cost + PHE_RATIO * phe
+                )
+            )
+            return r
+        else:
+            return 
+
+    def get_manha_distance(self, node: Node) -> int:
+        return np.abs(self.node.x - node.x) + np.abs(self.node.y - node.y)
+
+    def get_accessibility(self, node: Node) -> bool:
+        if np.sqrt((self.node.x - node.x) ** 2 + (self.node.y -node.y) ** 2) < self.comm_range:
+            return True
+        else:
+            return False
+
+    def get_explore_profit(self) -> int:
+        # todo fix explore profit
+        return 1
+
+    def get_phe_level(self, node: Node) -> float:
+        phe_map = self.get_global_phe_map()
+        return phe_map.get_phe(self.node, node)
+
+    def get_global_phe_map(self):
+        #todo fix global phemap#
+        b = PheMap()
+        return b
