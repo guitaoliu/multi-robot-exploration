@@ -1,15 +1,23 @@
 import numpy as np 
-
-from setting import (
+from abc import ABC
+from robots.setting import (
     MAP_SIZE,
     BARRIER_PERCENTAGE,
     PHE_VOLATILIZE_CAP
 )
 
-from robot import Node
+
+class Node:
+
+    def __init__(self, pos: tuple):
+        self.x = pos[0]
+        self.y = pos[1]
+
+    def loc(self) -> tuple:
+        return self.x, self.y
 
 
-class Map:
+class Map(ABC):
     
     def __init__(self):
         self.map = np.zeros(MAP_SIZE, dtype=int)
@@ -18,7 +26,7 @@ class Map:
 class BarrierMap(Map):
 
     def __init__(self):
-        super().__init__()
+        super(BarrierMap, self).__init__()
         self.barrier_num = int(MAP_SIZE[0] * MAP_SIZE [1] * BARRIER_PERCENTAGE)
         self.load_barrier()
 
@@ -29,16 +37,33 @@ class BarrierMap(Map):
             map_flatten[choice] = 1
         self.map = map_flatten.reshape(MAP_SIZE)
 
+    def __call__(self, node: Node) -> bool:
+        return self.map[node.x, node.y] == 1
+
+    def get_random_node(self):
+        x, y = np.random.choice(range(self.map.shape[0])), np.random.choice(range(self.map.shape[1]))
+        while self.map[x, y] == 1:
+            x, y = np.random.choice(range(self.map.shape[0])), np.random.choice(range(self.map.shape[1]))
+        return Node((x, y))
+
+
 class ExploreMap(Map):
     
     def __init__(self):
-        super().__init__()
+        super(ExploreMap, self).__init__()
+
+    def update(self, node: Node):
+        self.map[node.x, node.y] = 1
+
+    def is_finished(self):
+        # todo 这样是否合理
+        return self.map.sum() == self.map.shape[0] * self.map.shape[1]
 
 
 class PheMap(Map):
 
     def __init__(self):
-        super().__init__()
+        super(PheMap, self).__init__()
         self.map = np.zeros_like(self.map, dtype=float)
 
     def update_phe(self, node: Node):
