@@ -1,5 +1,6 @@
 import numpy as np 
 from abc import ABC
+
 from robots.setting import (
     MAP_SIZE,
     BARRIER_PERCENTAGE,
@@ -21,6 +22,9 @@ class Map(ABC):
     
     def __init__(self):
         self.map = np.zeros(MAP_SIZE, dtype=int)
+
+    def __getitem__(self, indices):
+        return self.map[indices[0], indices[1]]
 
 
 class BarrierMap(Map):
