@@ -53,6 +53,11 @@ class Robot:
             return None
 
     def get_manha_distance(self, node: Node) -> int:
+        """
+        返回自身和目标点之间的曼哈顿距离
+        :param node: 另一个点
+        :return: 曼哈顿距离
+        """
         return np.abs(self.node.x - node.x) + np.abs(self.node.y - node.y)
 
     def get_phe_level(self, node: Node, phe_map: PheMap) -> float:
@@ -87,6 +92,10 @@ class Robot:
         # todo 任务点过远问题
         return np.sqrt((self.node.x - node.x) ** 2 + (self.node.y - node.y) ** 2) < self.moving_range
 
+    def update_loc_map(self, bot):
+        self.loc_explore_map |= bot.loc_explore_map
+        self.loc_barrier_map |= bot.loc_barrier_map
+
     def is_finished(self):
         """
         检验本地探索地图，判断地图探索是否完成
@@ -94,7 +103,7 @@ class Robot:
         """
         return self.loc_explore_map.is_finished()
 
-    def get_await_nodes(self) -> Node:
+    def get_await_node(self) -> Node:
         """
         边界点中找寻下一个任务
         :return: 对自己最优任务点
@@ -115,30 +124,44 @@ class Robot:
             """
             pass
 
-    def release_node_and_wait_for_buyer(self, bot_list: List) -> int:
+    def release_node_and_wait_for_buyer(self, bot_list: List, current_await_node: List) -> (int, Node):
         """
         拍卖执行过程
+        :param current_await_node:
         :param bot_list: 当前所有机器人列表
         :return: 执行者编号 rob_id
         """
-        target = self.get_await_nodes()
-        max_val = self.get_moving_profit(target)
+
+        target = self.get_await_node()
+        target_profit = self.get_moving_profit(target)
+        node_list = [(target, target_profit)]
+        await_list = [(node, self.get_moving_profit(node)) for node in current_await_node]
+
+        node, profit = sorted(node_list+await_list, key=lambda k: k[1], reverse=True)[0]
+
         executor = self.bot_id
         for bot in bot_list:
-            if self.get_accessibility(bot.node):
-                bot_profit = bot.get_moving_profit(target)
-                if bot_profit > max_val:
-                    executor = bot.bot_id
+            if bot.bot_id != self.bot_id:
+                self.update_loc_map(bot)
+                if self.get_accessibility(bot.node):
+                    bot_profit = bot.get_moving_profit(node)
+                    if bot_profit > profit:
+                        executor = bot.bot_id
+
+        if node in current_await_node:
+            current_await_node.pop(current_await_node.index(node))
+
+        return executor, node, current_await_node
     
-        return executor
-    
-    def explore(self, barrier_map: BarrierMap):
+    def explore(self, barrier_map: BarrierMap, phe_map: PheMap):
         """
-        对探索地图进行更新，传感器范围内探索，移动一个单位后执行
+        对探索地图进行更新，传感器范围内探索，移动一个单位后执行，包括未知点探索和信息素更新
+        :param phe_map: 信息素地图
         :param barrier_map: 障碍物地图
         :return:
         """
         x, y = self.loc()
+        phe_map.update_phe(self.node)
         for i in range(x - self.sensor_range, x + self.sensor_range + 1):
             for j in range(y - self.sensor_range, y + self.sensor_range + 1):
                 distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
@@ -147,10 +170,34 @@ class Robot:
                     if barrier_map[i, j]:
                         self.loc_barrier_map.update(Node((i, j)))
     
-    def find_way(self, target: Node) -> List[Node]:
+    def find_way(self, nodes):
+        """
+        用于找到自身到目标点的移动轨迹
+        :param target: 目标任务点
+        :return:
+        """
+        sorted_nodes = sorted(nodes, key=lambda k: self.get_moving_profit(k))
+        target_node = sorted_nodes[0]
         # D*算法，得到路径序列
-        next_node = Node()
+        self.explore_node_list = [1, 2, 2, 3, 3]
+
+    def move(self, next_node: Node, barrier_map: BarrierMap, phe_map: PheMap):
+        """
+        机器人执行移动，并对移动后的点执行探索，探索包括未知点发现和信息素更新
+        :param next_node:
+        :param barrier_map:
+        :param phe_map:
+        :return:
+        """
         self.node = next_node
         self.moving_path.append(next_node)
+        self.explore(barrier_map, phe_map)
+
+    def run(self, barrier_map: BarrierMap, phe_map: PheMap) -> bool:
+        if self.explore_node_list:
+            self.move(self.explore_node_list.pop(0), barrier_map, phe_map)
+            return True
+        else:
+            return False
 
 
