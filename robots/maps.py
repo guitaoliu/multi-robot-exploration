@@ -80,7 +80,7 @@ class PheMap(Map):
     def volatilize(phe_level: float) -> float:
         return (1 - PHE_VOLATILIZE_CAP) * phe_level
 
-    def get_phe(self,node1: Node, node2: Node) -> float:
+    def get_phe(self, node1: Node, node2: Node) -> float:
         phe = 0
         x_start, x_end = min(node1.x, node2.x), max(node1.x, node2.x)
         y_start, y_end = min(node1.y, node2.y), max(node1.y, node2.y)
