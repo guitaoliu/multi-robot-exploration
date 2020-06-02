@@ -1,5 +1,6 @@
-import numpy as np 
+import numpy as np
 from abc import ABC
+from typing import List
 
 from robots.setting import (
     MAP_SIZE,
@@ -19,7 +20,7 @@ class Node:
 
 
 class Map(ABC):
-    
+
     def __init__(self):
         self.map = np.zeros(MAP_SIZE, dtype=int)
 
@@ -31,7 +32,7 @@ class BarrierMap(Map):
 
     def __init__(self):
         super(BarrierMap, self).__init__()
-        self.barrier_num = int(MAP_SIZE[0] * MAP_SIZE [1] * BARRIER_PERCENTAGE)
+        self.barrier_num = int(MAP_SIZE[0] * MAP_SIZE[1] * BARRIER_PERCENTAGE)
         self.load_barrier()
 
     def load_barrier(self):
@@ -52,16 +53,32 @@ class BarrierMap(Map):
 
 
 class ExploreMap(Map):
-    
+
     def __init__(self):
         super(ExploreMap, self).__init__()
 
     def update(self, node: Node):
         self.map[node.x, node.y] = 1
 
-    def is_finished(self):
+    def is_finished(self) -> bool:
         # todo 这样是否合理
         return self.map.sum() == self.map.shape[0] * self.map.shape[1]
+
+    def status(self, node: Node) -> int:
+        return self.map[node.loc()]
+
+    def get_eight_neighbours(self, node: Node) -> List:
+        node_list = []
+        for i in (-1, 1, 1):
+            for j in range(-1, 1, 1):
+                if i == 1 and j == 1:
+                    continue
+                if node.x - i < 0 or node.x + i >= MAP_SIZE[0] \
+                        or node.y - j < 0 or node.y + j >= MAP_SIZE[1]:
+                    continue
+                if not self.status(Node((node.x + i, node.y + j))):
+                    node_list.append(Node((node.x + i, node.y + j)))
+        return node_list
 
 
 class PheMap(Map):
@@ -87,5 +104,5 @@ class PheMap(Map):
         for i in range(x_start, x_end):
             for j in range(y_start, y_end):
                 phe += self.map[i, j]
-        
+
         return phe

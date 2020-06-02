@@ -9,6 +9,7 @@ from robots.setting import (
     BOT_SENSOR_RANGE,
 )
 
+import robots
 from robots.maps import ExploreMap, PheMap, Node, BarrierMap
 
 
@@ -117,18 +118,17 @@ class Robot:
                     node_list.append((Node((x, y)), distance))
     
         if node_list:
-            return sorted(node_list, key=lambda k: k[1], reverse=True)[0][0]
+            return min(node_list, key=lambda k: k[1])[0]
         else:
             """
             通信范围内无可探测点
             """
             pass
 
-    def release_node_and_wait_for_buyer(self, bot_list: List, current_await_node: List) -> (int, Node):
+    def release_node_and_wait_for_buyer(self, current_await_node: List) -> (int, Node):
         """
         拍卖执行过程
         :param current_await_node:
-        :param bot_list: 当前所有机器人列表
         :return: 执行者编号 rob_id
         """
 
@@ -140,7 +140,7 @@ class Robot:
         node, profit = sorted(node_list+await_list, key=lambda k: k[1], reverse=True)[0]
 
         executor = self.bot_id
-        for bot in bot_list:
+        for bot in robots.robots_list:
             if bot.bot_id != self.bot_id:
                 self.update_loc_map(bot)
                 if self.get_accessibility(bot.node):
@@ -153,51 +153,58 @@ class Robot:
 
         return executor, node, current_await_node
     
-    def explore(self, barrier_map: BarrierMap, phe_map: PheMap):
+    def explore(self):
         """
         对探索地图进行更新，传感器范围内探索，移动一个单位后执行，包括未知点探索和信息素更新
-        :param phe_map: 信息素地图
-        :param barrier_map: 障碍物地图
         :return:
         """
         x, y = self.loc()
-        phe_map.update_phe(self.node)
+        # 信息素更新
+        robots.phe_map.update_phe(self.node)
+        # 探索
         for i in range(x - self.sensor_range, x + self.sensor_range + 1):
             for j in range(y - self.sensor_range, y + self.sensor_range + 1):
                 distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
                 if distance <= self.sensor_range:
                     self.loc_explore_map.update(Node((i, j)))
-                    if barrier_map[i, j]:
+                    if robots.barrier_map[i, j]:
                         self.loc_barrier_map.update(Node((i, j)))
     
-    def find_way(self, nodes):
+    def find_way(self, nodes: List):
         """
         用于找到自身到目标点的移动轨迹
+        :param nodes:
         :param target: 目标任务点
         :return:
         """
-        sorted_nodes = sorted(nodes, key=lambda k: self.get_moving_profit(k))
+        sorted_nodes = max(nodes, key=lambda k: self.get_moving_profit(k))
         target_node = sorted_nodes[0]
         # D*算法，得到路径序列
         self.explore_node_list = [1, 2, 2, 3, 3]
 
-    def move(self, next_node: Node, barrier_map: BarrierMap, phe_map: PheMap):
+    def move(self, next_node: Node):
         """
         机器人执行移动，并对移动后的点执行探索，探索包括未知点发现和信息素更新
-        :param next_node:
-        :param barrier_map:
-        :param phe_map:
+        :param next_node: 下一个移动点
         :return:
         """
-        self.node = next_node
-        self.moving_path.append(next_node)
-        self.explore(barrier_map, phe_map)
+        if self.loc_barrier_map.status(next_node):
+            return 0
+        else:
+            self.node = next_node
+            self.moving_path.append(next_node)
+            self.explore()
+            return 1
 
-    def run(self, barrier_map: BarrierMap, phe_map: PheMap) -> bool:
+    def run(self) -> bool:
+        """
+        这里的执行过程，判断是否能够进行下一步移动，如果不能移动，重新执行寻路算法，更新移动路径，并重新执行移动
+        :return:
+        """
         if self.explore_node_list:
-            self.move(self.explore_node_list.pop(0), barrier_map, phe_map)
+            if self.move(self.explore_node_list.pop(0)):
+                self.find_way(self.explore_node_list[-1])
+                self.move(self.explore_node_list.pop(0))
             return True
         else:
             return False
-
-
