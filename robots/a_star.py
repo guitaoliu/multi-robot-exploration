@@ -76,8 +76,9 @@ class AStar:
 
     def run(self) -> List[Node]:
         a_node = self.process()
-        node_list, a_node = [Node(a_node.loc())], a_node.father
+        node_list = []
         try:
+            node_list, a_node = [Node(a_node.loc())], a_node.father
             while a_node.father is not None:
                 node_list.append(Node(a_node.loc()))
                 a_node = a_node.father

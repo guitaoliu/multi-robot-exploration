@@ -7,6 +7,7 @@ from robots.setting import (
     BARRIER_PERCENTAGE,
     PHE_VOLATILIZE_CAP,
     MAP_EXPLORE_PERCENT,
+    ENABLE_PHE,
 )
 
 
@@ -91,7 +92,7 @@ class PheMap(Map):
         self.map = np.zeros_like(self.map, dtype=float)
 
     def update_phe(self, node: Node):
-        self.map[node.x, node.y] += 1
+        self.map[node.x, node.y] += ENABLE_PHE
 
     def phe_volatilize(self):
         map(self.volatilize, self.map)

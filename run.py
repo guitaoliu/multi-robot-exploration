@@ -94,3 +94,6 @@ if __name__ == '__main__':
     explorer_time = time.time() - start
     logger.info('{:.2f}s elapsed'.format(explorer_time))
     logger.info(f'最终障碍物地图为在机器人 #{robot_map} 上')
+    total_move = 0
+    logger.info(f'总步数为 {sum([len(item.moving_path) for item in robots.robots_list])} ')
+    logger.info(f'单个机器人移动 {sum([len(item.moving_path) for item in robots.robots_list]) // BOT_NUMS}')
