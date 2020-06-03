@@ -11,6 +11,7 @@ from robots.setting import (
 
 import robots
 from robots.maps import ExploreMap, PheMap, Node, BarrierMap
+from robots.a_star import AStar
 
 
 class Robot:
@@ -177,10 +178,9 @@ class Robot:
         :param target: 目标任务点
         :return:
         """
-        sorted_nodes = max(nodes, key=lambda k: self.get_moving_profit(k))
-        target_node = sorted_nodes[0]
-        # D*算法，得到路径序列
-        self.explore_node_list = [1, 2, 2, 3, 3]
+        end_node = max(nodes, key=lambda k: self.get_moving_profit(k))
+        a_star = AStar(self.node, end_node, robots.barrier_map)
+        self.explore_node_list = a_star.run()
 
     def move(self, next_node: Node):
         """

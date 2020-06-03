@@ -67,17 +67,14 @@ class ExploreMap(Map):
     def status(self, node: Node) -> int:
         return self.map[node.loc()]
 
-    def get_eight_neighbours(self, node: Node) -> List:
+    def get_neighbours(self, node: Node) -> List:
         node_list = []
-        for i in (-1, 1, 1):
-            for j in range(-1, 1, 1):
-                if i == 1 and j == 1:
-                    continue
-                if node.x - i < 0 or node.x + i >= MAP_SIZE[0] \
-                        or node.y - j < 0 or node.y + j >= MAP_SIZE[1]:
-                    continue
-                if not self.status(Node((node.x + i, node.y + j))):
-                    node_list.append(Node((node.x + i, node.y + j)))
+        for i, j in [(-1, 0), (0, -1), (1, 0), (0, 1)]:
+            if node.x - i < 0 or node.x + i >= MAP_SIZE[0] \
+                    or node.y - j < 0 or node.y + j >= MAP_SIZE[1]:
+                continue
+            if not self.status(Node((node.x + i, node.y + j))):
+                node_list.append(Node((node.x + i, node.y + j)))
         return node_list
 
 
