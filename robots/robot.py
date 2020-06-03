@@ -1,4 +1,7 @@
 import numpy as np
+import random
+import logging
+
 from typing import Union, List
 
 from robots.setting import (
@@ -7,11 +10,14 @@ from robots.setting import (
     PROFIT_RATIO,
     PHE_RATIO,
     BOT_SENSOR_RANGE,
+    MAP_SIZE,
 )
 
 import robots
-from robots.maps import ExploreMap, PheMap, Node, BarrierMap
+from robots.maps import ExploreMap, PheMap, Node
 from robots.a_star import AStar
+
+logger = logging.getLogger(__name__)
 
 
 class Robot:
@@ -32,10 +38,12 @@ class Robot:
         self.moving_path = []
         self.explore_node_list = []
 
+        self.explore()
+
     def loc(self) -> tuple:
         return self.node.loc()
 
-    def get_moving_profit(self, node: Node) -> Union[float, None]:
+    def get_moving_profit(self, node: Node) -> float:
         """
         针对任务点的出价函数
         :param node: 任务点
@@ -43,7 +51,7 @@ class Robot:
         """
         if self.get_accessibility(node):
             moving_cost = self.get_manha_distance(node)
-            phe = self.get_phe_level(node)
+            phe = self.get_phe_level(node, robots.phe_map)
             explore_profit = self.get_explore_profit(node)
             r = np.exp(
                 PROFIT_RATIO * explore_profit + (1 - PROFIT_RATIO) * (
@@ -52,7 +60,7 @@ class Robot:
             )
             return r
         else:
-            return None
+            return -1
 
     def get_manha_distance(self, node: Node) -> int:
         """
@@ -80,8 +88,9 @@ class Robot:
         new_explore_node = 0
         for i in range(node.x - self.sensor_range, node.x + self.sensor_range + 1):
             for j in range(node.y - self.sensor_range, node.y + self.sensor_range + 1):
-                if self.loc_explore_map[i, j] == 0:
-                    new_explore_node += 1
+                if 0 <= i < MAP_SIZE[0] and 0 <= j < MAP_SIZE[1]:
+                    if self.loc_explore_map.map[i, j] == 0:
+                        new_explore_node += 1
 
         return new_explore_node
 
@@ -95,8 +104,8 @@ class Robot:
         return np.sqrt((self.node.x - node.x) ** 2 + (self.node.y - node.y) ** 2) < self.moving_range
 
     def update_loc_map(self, bot):
-        self.loc_explore_map |= bot.loc_explore_map
-        self.loc_barrier_map |= bot.loc_barrier_map
+        self.loc_explore_map.map |= bot.loc_explore_map.map
+        self.loc_barrier_map.map |= bot.loc_barrier_map.map
 
     def is_finished(self):
         """
@@ -112,52 +121,63 @@ class Robot:
         """
         x, y = self.loc()
         node_list = []
+        logger.debug(f'bot #{self.bot_id} with sum of local explore map as {np.sum(self.loc_explore_map.map)}')
         for i in range(x - self.moving_range, x + self.moving_range + 1):
             for j in range(y - self.moving_range, y + self.moving_range + 1):
-                distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
-                if self.loc_explore_map[i, j] == 0 and distance <= self.moving_range:
-                    node_list.append((Node((x, y)), distance))
+                if 0 <= i < MAP_SIZE[0] and 0 <= j < MAP_SIZE[1]:
+                    distance = np.sqrt(np.power(x - i, 2) + np.power(y - j, 2))
+                    if self.loc_explore_map.map[i, j] == 0 and distance <= self.moving_range:
+                        # logger.debug(f'get node {i, j} with {self.loc_explore_map.map[i, j]}')
+                        node_list.append((Node((i, j)), distance))
     
         if node_list:
-            return min(node_list, key=lambda k: k[1])[0]
+            target_node = sorted(node_list, key=lambda k: k[1])[0:4]
+            return random.choice(target_node)[0]
         else:
             """
             通信范围内无可探测点
             """
-            pass
+            unexplored_map = np.argwhere(self.loc_explore_map.map == 1)
+            barriers = np.argwhere(robots.barrier_map.map == 1)
+            await_nodes = [tuple(node) for node in unexplored_map if node not in barriers]
+            choice = random.choice(await_nodes)
+            logger.debug(f'bot #{self.bot_id} has no near target node!!')
+            return Node(choice)
 
-    def release_node_and_wait_for_buyer(self, current_await_node: List) -> (int, Node):
+    def release_node_and_wait_for_buyer(self) -> (int, Node):
         """
         拍卖执行过程
-        :param current_await_node:
         :return: 执行者编号 rob_id
         """
 
         target = self.get_await_node()
+        logger.debug(f'bot #{self.bot_id} find node {target.loc()}')
         target_profit = self.get_moving_profit(target)
         node_list = [(target, target_profit)]
-        await_list = [(node, self.get_moving_profit(node)) for node in current_await_node]
+        await_list = [(node, self.get_moving_profit(node)) for node in robots.robots_await_nodes[self.bot_id]]
 
-        node, profit = sorted(node_list+await_list, key=lambda k: k[1], reverse=True)[0]
+        node, profit = max(node_list+await_list, key=lambda k: k[1])
 
         executor = self.bot_id
         for bot in robots.robots_list:
             if bot.bot_id != self.bot_id:
                 self.update_loc_map(bot)
+                bot.update_loc_map(robots.robots_list[self.bot_id])
                 if self.get_accessibility(bot.node):
                     bot_profit = bot.get_moving_profit(node)
-                    if bot_profit > profit:
-                        executor = bot.bot_id
+                    if bot_profit:
+                        if bot_profit > profit:
+                            executor = bot.bot_id
+                            self.loc_explore_map.map[node.x, node.y] = 1
 
-        if node in current_await_node:
-            current_await_node.pop(current_await_node.index(node))
+        if node in robots.robots_await_nodes[self.bot_id]:
+            robots.robots_await_nodes[self.bot_id].pop(robots.robots_await_nodes[self.bot_id].index(node))
 
-        return executor, node, current_await_node
+        return executor, node
     
     def explore(self):
         """
         对探索地图进行更新，传感器范围内探索，移动一个单位后执行，包括未知点探索和信息素更新
-        :return:
         """
         x, y = self.loc()
         # 信息素更新
@@ -165,22 +185,32 @@ class Robot:
         # 探索
         for i in range(x - self.sensor_range, x + self.sensor_range + 1):
             for j in range(y - self.sensor_range, y + self.sensor_range + 1):
-                distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
-                if distance <= self.sensor_range:
-                    self.loc_explore_map.update(Node((i, j)))
-                    if robots.barrier_map[i, j]:
-                        self.loc_barrier_map.update(Node((i, j)))
+                if 0 <= i < MAP_SIZE[0] and 0 <= j < MAP_SIZE[1]:
+                    distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
+                    if distance <= self.sensor_range and self.loc_explore_map.map[i, j] == 0:
+                        self.loc_explore_map.map[i, j] = 1
+                        if robots.barrier_map.map[i, j]:
+                            self.loc_barrier_map.map[i, j] = 1
     
     def find_way(self, nodes: List):
         """
         用于找到自身到目标点的移动轨迹
         :param nodes:
-        :param target: 目标任务点
         :return:
         """
-        end_node = max(nodes, key=lambda k: self.get_moving_profit(k))
-        a_star = AStar(self.node, end_node, robots.barrier_map)
+        if len(nodes) == 1:
+            end_node = nodes[0]
+        else:
+            end_node = max(nodes, key=lambda k: self.get_moving_profit(k))
+        for i, node in enumerate(robots.robots_await_nodes[self.bot_id]):
+            if node.loc() == end_node.loc():
+                robots.robots_await_nodes[self.bot_id].pop(i)
+                
+        a_star_map = ExploreMap()
+        a_star_map.map = self.loc_barrier_map.map & self.loc_explore_map.map
+        a_star = AStar(self.node, end_node, a_star_map)
         self.explore_node_list = a_star.run()
+        logger.debug(f'bot #{self.bot_id} get path {[node.loc() for node in self.explore_node_list]}')
 
     def move(self, next_node: Node):
         """
@@ -188,13 +218,11 @@ class Robot:
         :param next_node: 下一个移动点
         :return:
         """
-        if self.loc_barrier_map.status(next_node):
-            return 0
-        else:
-            self.node = next_node
-            self.moving_path.append(next_node)
-            self.explore()
-            return 1
+        logger.debug(f'bot #{self.bot_id} move from {self.node.loc()} to {next_node.loc()}')
+        logger.debug(f'bot #{self.bot_id} current paht {[node.loc() for node in self.explore_node_list]}')
+        self.node = next_node
+        self.explore()
+        self.moving_path.append(next_node)
 
     def run(self) -> bool:
         """
@@ -202,9 +230,12 @@ class Robot:
         :return:
         """
         if self.explore_node_list:
-            if self.move(self.explore_node_list.pop(0)):
-                self.find_way(self.explore_node_list[-1])
-                self.move(self.explore_node_list.pop(0))
+            if self.loc_barrier_map.status(self.explore_node_list[0]):
+                if len(self.explore_node_list) == 1:
+                    self.explore_node_list = []
+                    return False
+                self.find_way([self.explore_node_list[-1]])
+            self.move(self.explore_node_list.pop(0))
             return True
         else:
             return False
