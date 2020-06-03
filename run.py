@@ -52,6 +52,7 @@ def sim():
                 robots.robots_list[i].find_way(robots.robots_await_nodes[i])
                 robots.robots_list[i].run()
                 break
+
     for bot in robots.robots_list:
         canvas_explore_map.map |= bot.loc_explore_map.map
 

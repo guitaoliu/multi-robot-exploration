@@ -106,6 +106,7 @@ class Robot:
     def update_loc_map(self, bot):
         self.loc_explore_map.map |= bot.loc_explore_map.map
         self.loc_barrier_map.map |= bot.loc_barrier_map.map
+        self.drop_know_target()
 
     def is_finished(self):
         """
@@ -138,8 +139,7 @@ class Robot:
             通信范围内无可探测点
             """
             unexplored_map = np.argwhere(self.loc_explore_map.map == 1)
-            barriers = np.argwhere(robots.barrier_map.map == 1)
-            await_nodes = [tuple(node) for node in unexplored_map if node not in barriers]
+            await_nodes = [tuple(node) for node in unexplored_map]
             choice = random.choice(await_nodes)
             logger.debug(f'bot #{self.bot_id} has no near target node!!')
             return Node(choice)
@@ -159,10 +159,10 @@ class Robot:
         node, profit = max(node_list+await_list, key=lambda k: k[1])
 
         executor = self.bot_id
-        for bot in robots.robots_list:
+        for i, bot in enumerate(robots.robots_list):
             if bot.bot_id != self.bot_id:
                 self.update_loc_map(bot)
-                bot.update_loc_map(robots.robots_list[self.bot_id])
+                robots.robots_list[i].update_loc_map(robots.robots_list[self.bot_id])
                 if self.get_accessibility(bot.node):
                     bot_profit = bot.get_moving_profit(node)
                     if bot_profit:
@@ -191,7 +191,12 @@ class Robot:
                         self.loc_explore_map.map[i, j] = 1
                         if robots.barrier_map.map[i, j]:
                             self.loc_barrier_map.map[i, j] = 1
-    
+
+    def drop_know_target(self):
+        for i, node in enumerate(robots.robots_await_nodes[self.bot_id]):
+            if self.loc_explore_map.map[node.x, node.y]:
+                robots.robots_await_nodes[self.bot_id].pop(i)
+
     def find_way(self, nodes: List):
         """
         用于找到自身到目标点的移动轨迹
@@ -205,7 +210,7 @@ class Robot:
         for i, node in enumerate(robots.robots_await_nodes[self.bot_id]):
             if node.loc() == end_node.loc():
                 robots.robots_await_nodes[self.bot_id].pop(i)
-                
+
         a_star_map = ExploreMap()
         a_star_map.map = self.loc_barrier_map.map & self.loc_explore_map.map
         a_star = AStar(self.node, end_node, a_star_map)

@@ -75,10 +75,14 @@ class AStar:
                     self.open_list.append(nei_node)
 
     def run(self) -> List[Node]:
-        node_list = []
         a_node = self.process()
-        while a_node.father is not None:
-            node_list.append(Node(a_node.loc()))
-            a_node = a_node.father
+        node_list, a_node = [Node(a_node.loc())], a_node.father
+        try:
+            while a_node.father is not None:
+                node_list.append(Node(a_node.loc()))
+                a_node = a_node.father
+        except AttributeError as e:
+            pass
+
         node_list.reverse()
         return node_list
