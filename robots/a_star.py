@@ -25,7 +25,7 @@ class ANode(Node):
 
 class AStar:
 
-    def __init__(self, start_node: Node, end_node: Node, barrier_map: BarrierMap):
+    def __init__(self, start_node: Node, end_node: Node, barrier_map):
         self.start_a_node = ANode(start_node.loc())
         self.end_a_node = ANode(end_node.loc())
 
@@ -44,7 +44,7 @@ class AStar:
         return self.open_list.pop(self.open_list.index(min_f_a_node))
 
     def process(self) -> ANode:
-        if self.open_list:
+        while self.open_list:
             current_a_node = self.get_min_f_a_node()
             self.close_list.append(current_a_node)
 
@@ -60,7 +60,7 @@ class AStar:
         for i, j in [(-1, 0), (0, -1), (1, 0), (0, 1)]:
             nei_loc = (a_node.x + i, a_node.y + j)
             if 0 <= nei_loc[0] < MAP_SIZE[0] and 0 <= nei_loc[1] < MAP_SIZE[1]:
-                if self.barrier_map[nei_loc[0], nei_loc[1]] or nei_loc in close_a_node_loc:
+                if self.barrier_map.map[nei_loc[0], nei_loc[1]] or nei_loc in close_a_node_loc:
                     continue
                 if nei_loc in open_a_node_loc:
                     nei_open_node = self.open_list.pop(open_a_node_loc.index(nei_loc))
@@ -73,11 +73,13 @@ class AStar:
                     nei_node.set_h(self.end_a_node)
                     nei_node.g = a_node.g + 1
                     nei_node.father = a_node
-                    neighbours.append(nei_node)
+                    self.open_list.append(nei_node)
 
     def run(self) -> List[Node]:
         node_list = []
         a_node = self.process()
         while a_node.father is not None:
             node_list.append(Node(a_node.loc()))
+            a_node = a_node.father
+        node_list.reverse()
         return node_list
