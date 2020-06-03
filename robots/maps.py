@@ -5,7 +5,8 @@ from typing import List
 from robots.setting import (
     MAP_SIZE,
     BARRIER_PERCENTAGE,
-    PHE_VOLATILIZE_CAP
+    PHE_VOLATILIZE_CAP,
+    MAP_EXPLORE_PERCENT,
 )
 
 
@@ -17,6 +18,9 @@ class Node:
 
     def loc(self) -> tuple:
         return self.x, self.y
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
 
 
 class Map(ABC):
@@ -61,8 +65,10 @@ class ExploreMap(Map):
         self.map[node.x, node.y] = 1
 
     def is_finished(self) -> bool:
-        # todo 这样是否合理
-        return self.map.sum() == self.map.shape[0] * self.map.shape[1]
+        if self.map.sum() >= MAP_EXPLORE_PERCENT * self.map.shape[0] * self.map.shape[1]:
+            return True
+        else:
+            return False
 
     def status(self, node: Node) -> int:
         return self.map[node.loc()]

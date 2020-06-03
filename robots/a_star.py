@@ -54,7 +54,6 @@ class AStar:
             self.filter_neighbour_nodes(current_a_node)
 
     def filter_neighbour_nodes(self, a_node: ANode):
-        neighbours = []
         close_a_node_loc = [node.loc() for node in self.close_list]
         open_a_node_loc = [node.loc() for node in self.open_list]
         for i, j in [(-1, 0), (0, -1), (1, 0), (0, 1)]:
