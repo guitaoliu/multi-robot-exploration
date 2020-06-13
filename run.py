@@ -61,7 +61,7 @@ def sim():
 
     if stop == 1:
         pass
-
+    canvas.delete('all')
     for x in range(MAP_SIZE[0]):
         for y in range(MAP_SIZE[1]):
             if robots.barrier_map[x, y]:
@@ -77,6 +77,13 @@ def sim():
     if not stop:
         window.after(100, sim)
 
+    if stop:
+        explorer_time = time.time() - start
+        logger.info('{:.2f}s elapsed'.format(explorer_time))
+        logger.info(f'最终障碍物地图为在机器人 #{robot_map} 上')
+        logger.info(f'总步数为 {sum([len(item.moving_path) for item in robots.robots_list])} ')
+        logger.info(f'单个机器人移动 {sum([len(item.moving_path) for item in robots.robots_list]) // BOT_NUMS}')
+
 
 if __name__ == '__main__':
     for i in range(MAP_SIZE[0]):
@@ -91,9 +98,4 @@ if __name__ == '__main__':
 
     B = tk.Button(window, text='Begin Simulating', font=('Arial', 12), width=15, height=1, command=sim).pack()
     window.mainloop()
-    explorer_time = time.time() - start
-    logger.info('{:.2f}s elapsed'.format(explorer_time))
-    logger.info(f'最终障碍物地图为在机器人 #{robot_map} 上')
-    total_move = 0
-    logger.info(f'总步数为 {sum([len(item.moving_path) for item in robots.robots_list])} ')
-    logger.info(f'单个机器人移动 {sum([len(item.moving_path) for item in robots.robots_list]) // BOT_NUMS}')
+
